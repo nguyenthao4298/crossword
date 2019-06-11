@@ -1,4 +1,11 @@
 from tkinter import *
+import librosa
+import numpy as np
+import pickle
+import sounddevice as sd
+import soundfile as sf
+import speech_recognition as sr
+from tkinter import messagebox
 
 
 class Demo(Frame):
@@ -19,11 +26,26 @@ class Demo(Frame):
                 right = col * self.sqsize + self.sqsize
                 cas.create_rectangle(left, top, right, bottom, outline='white', fill='black')
         cas.pack()
-        # Các từ và cách đặt các từ
-        self.a = ('math', 'physic', 'music', 'literature', 'history')
-        self.style = ("ngang", "doc", "doc", "doc", "ngang")
-        self.rowWords = (5, 4, 5, 0, 1)
-        self.colWords = (2, 5, 7, 3, 2)
+        self.a = ('English', 'biology', 'music', 'sport', 'history')
+        self.q = ('You practise speaking the language of U.S in this subject',
+                  'The subject of living organisms',
+                  'We learn to sing & play the guitar in this subject',
+                  'What do we do in P.E',
+                  'We can learn about events of the past and long time ago')
+
+        self.check = ['0', '0', '0', '0', '0']
+        self.style = ("ngang", "ngang", "doc", "ngang", "doc")
+        self.rowWords = (3, 9, 0, 7, 3)
+        self.colWords = (1, 1, 5, 5, 7)
+        # questions of hints
+        cas.create_text(750, 30, fill="darkblue", font="Times 20 bold", text='CROSSWORDS')
+        cas.create_text(530, 70, anchor=W, font="VNI-Dom 18", text='1.' + self.q[0])
+        cas.create_text(530, 100, anchor=W, font="VNI-Dom 18", text='2.' + self.q[1])
+        cas.create_text(530, 130, anchor=W, font="VNI-Dom 18", text='3.' + self.q[2])
+        cas.create_text(530, 160, anchor=W, font="VNI-Dom 18", text='4.' + self.q[3])
+        cas.create_text(530, 190, anchor=W, font="VNI-Dom 18", text='5.' + self.q[4])
+        cas.create_text(750, 250, fill="darkblue", font="Times 20 bold", text="Correct words: ")
+        cas.create_rectangle(850, 270, 900, 230, fill='white')
 
         # create number and word
         def generateHang(rowPosition, colPosition, lenghtOfWord, wordOrder):
@@ -48,192 +70,142 @@ class Demo(Frame):
 
         for word in range(0, len(self.a)):
             if self.style[word] == "doc":
-                # colPo = int(input("chon cot:"))
-                # rowPo = int(input("chon hang:"))
                 colPo = self.colWords[word]
                 rowPo = self.rowWords[word]
                 generateCot(rowPo, colPo, len(self.a[word]), str(word + 1))
             if self.style[word] == "ngang":
-                # colPo = int(input("chon cot:"))
-                # rowPo = int(input("chon hang:"))
                 colPo = self.colWords[word]
                 rowPo = self.rowWords[word]
                 generateHang(rowPo, colPo, len(self.a[word]), str(word + 1))
 
-        """
-        #hang
-        for col in range(4, len(self.a[0]) + 4):
-            row = 2
-            top = row * self.sqsize + 2
-            left = col * self.sqsize + 2
-            bottom = row * self.sqsize + self.sqsize
-            right = col * self.sqsize + self.sqsize
-            cas.create_rectangle(left, top, right, bottom, fill='white')
-            cas.create_text(4 * self.sqsize + 10, 2* self.sqsize + 10, text="1.", font=('Times', 10))
-            
-        for col in range(1, len(self.a[2]) + 1):
-            row = 0
-            top = row * self.sqsize + 2
-            left = col * self.sqsize + 2
-            bottom = row * self.sqsize + self.sqsize
-            right = col * self.sqsize + self.sqsize
-            cas.create_rectangle(left, top, right, bottom, fill='white')
-            cas.create_text(1 * self.sqsize + 10, 0 * self.sqsize + 10, text="3.", font=('Times', 10))
+        def get_mfcc(filename):
+            data, fs = librosa.load(filename, sr=None)
+            mfcc = librosa.feature.mfcc(data, fs, hop_length=128, n_fft=1024)
+            return mfcc.T
 
-        # cot
-        for row in range(1, len(self.a[1]) + 1):
-            col = 3
-            top = row * self.sqsize + 2
-            left = col * self.sqsize + 2
-            bottom = row * self.sqsize + self.sqsize
-            right = col * self.sqsize + self.sqsize
-            cas.create_rectangle(left, top, right, bottom, fill='white')
-            cas.create_text(3 * self.sqsize + 10, 1 * self.sqsize + 10, text="2.", font=('Times', 10))
+        choose = ['mot', 'hai', 'ba', 'bon', 'nam']
+        filename = ['venv\one.sav', 'venv\\two.sav', 'venv\\three.sav', 'venv\\four.sav', 'venv\\five.sav']
+        loaded_model = [pickle.load(open(model, 'rb')) for model in filename]
+        button1 = Button(tk, text="RECORD", command=lambda: record_sound('input.wav', 1))
+        button1.pack()
 
-        for row in range(0, len(self.a[4]) + 0):
-            col = 9
-            top = row * self.sqsize + 2
-            left = col * self.sqsize + 2
-            bottom = row * self.sqsize + self.sqsize
-            right = col * self.sqsize + self.sqsize
-            cas.create_rectangle(left, top, right, bottom, fill='white')
-            # cas.create_text(left + 25, top + 25, text=a[4][wordCount5], font=('Times', 16))
-            # wordCount5 = wordCount5 + 1
-            cas.create_text(9 * self.sqsize + 10, 0 * self.sqsize + 10, text="5.", font=('Times', 10))
+        def record_sound(filename, duration=2, fs=44100, play=False):
+            print('Recording...')
+            sd.play(np.sin(2 * np.pi * 500 * np.arange(fs) / fs), samplerate=fs, blocking=True)
+            sd.play(np.zeros(int(fs * 0.2)), samplerate=fs, blocking=True)
+            data = sd.rec(frames=duration * fs, samplerate=fs, channels=1, blocking=True)
+            if play:
+                sd.play(data, samplerate=fs, blocking=True)
+            sf.write(filename, data=data, samplerate=fs)
+            result = [loaded_model[i].score(get_mfcc('input.wav')) for i in range(len(loaded_model))]
+            print(choose[result.index(max(result))])
+            box(self, result.index(max(result)))
 
-        for row in range(0, len(self.a[3]) + 0):
-            col = 6
-            top = row * self.sqsize + 2
-            left = col * self.sqsize + 2
-            bottom = row * self.sqsize + self.sqsize
-            right = col * self.sqsize + self.sqsize
-            cas.create_rectangle(left, top, right, bottom, fill='white')
-            # cas.create_text(left + 25, top + 25, text=a[3][wordCount4], font=('Times', 16))
-            # wordCount4 = wordCount4 + 1
-            cas.create_text(6 * self.sqsize + 10, 0 * self.sqsize + 10, text="4.", font=('Times', 10))
-            """
-        # questions of hints
-        cas.create_text(600, 10, anchor=W, font="VNI-Dom 18", text='1.' + self.a[0])
-        cas.create_text(600, 40, anchor=W, font="VNI-Dom 18", text='2.' + self.a[1])
-        cas.create_text(600, 70, anchor=W, font="VNI-Dom 18", text='3.' + self.a[2])
-        cas.create_text(600, 100, anchor=W, font="VNI-Dom 18", text='4.' + self.a[3])
-        cas.create_text(600, 130, anchor=W, font="VNI-Dom 18", text='5.' + self.a[4])
+        def recognize_speech_from_mic(recognizer, microphone):
 
-        # button
-        self.button1 = Button(tk, text="win1", command=lambda: self.unhide(1))
-        self.button2 = Button(tk, text="win2", command=lambda: self.unhide(2))
-        self.button3 = Button(tk, text="win3", command=lambda: self.unhide(3))
-        self.button4 = Button(tk, text="win4", command=lambda: self.unhide(4))
-        self.button5 = Button(tk, text="win5", command=lambda: self.unhide(5))
-        self.button1.pack()
-        self.button2.pack()
-        self.button3.pack()
-        self.button4.pack()
-        self.button5.pack()
+            # check that recognizer and microphone arguments are appropriate type
+            if not isinstance(recognizer, sr.Recognizer):
+                raise TypeError("`recognizer` must be `Recognizer` instance")
 
-    def unhide(self, number):
-        wordCount1 = 0
-        #wordCount2 = 0
-        #wordCount3 = 0
-        #wordCount4 = 0
-        #wordCount5 = 0
-        if self.style[number - 1] == "ngang":
-            for col in range(self.colWords[number - 1], len(self.a[number - 1]) + self.colWords[number - 1]):
-                row = self.rowWords[number - 1]
+            if not isinstance(microphone, sr.Microphone):
+                raise TypeError("`microphone` must be `Microphone` instance")
+
+            # adjust the recognizer sensitivity to ambient noise and record audio
+            # from the microphone
+            with microphone as source:
+                recognizer.adjust_for_ambient_noise(source)
+                audio = recognizer.listen(source)
+
+            # set up the response object
+            response = {
+                "success": True,
+                "error": None,
+                "transcription": None
+            }
+
+            # try recognizing the speech in the recording
+            # if a RequestError or UnknownValueError exception is caught,
+            #     update the response object accordingly
+            try:
+                response["transcription"] = recognizer.recognize_google(audio)
+            except sr.RequestError:
+                # API was unreachable or unresponsive
+                response["success"] = False
+                response["error"] = "API unavailable"
+            except sr.UnknownValueError:
+                # speech was unintelligible
+                response["error"] = "Unable to recognize speech"
+
+            return response
+
+        def check_choosed():
+            check_count = 0
+            for c in range(0, 5):
+                if self.check[c] == '1':
+                    check_count = check_count + 1
+            return check_count
+
+        def box(self, number):
+            if self.style[number] == "ngang":
+                row = self.rowWords[number]
                 top = row * self.sqsize + 2
-                left = col * self.sqsize + 2
-                cas.create_text(left + 25, top + 25, text=self.a[number - 1][wordCount1], font=('Times', 16))
-                wordCount1 = wordCount1 + 1
-        if self.style[number - 1] == "doc":
-            for row in range(self.rowWords[number - 1], len(self.a[number - 1]) + self.rowWords[number - 1]):
-                col = self.colWords[number - 1]
-                top = row * self.sqsize + 2
-                left = col * self.sqsize + 2
-                cas.create_text(left + 25, top + 25, text=self.a[number - 1][wordCount1], font=('Times', 16))
-                wordCount1 = wordCount1 + 1
-        """
-        if number == 1:
-            if self.style[0] == "ngang":
-                for col in range(self.colWords[0], len(self.a[0]) + self.colWords[0]):
-                    row = self.rowWords[0]
-                    top = row * self.sqsize + 2
-                    left = col * self.sqsize + 2
-                    bottom = row * self.sqsize + self.sqsize
-                    right = col * self.sqsize + self.sqsize
-                    cas.create_text(left + 25, top + 25, text=self.a[0][wordCount1], font=('Times', 16))
-                    wordCount1 = wordCount1 + 1
-            if self.style[0] == "doc":
-                for row in range(self.rowWords[0], len(self.a[0]) + self.rowWords[0]):
-                    col = self.colWords[0]
-                    top = row * self.sqsize + 2
-                    left = col * self.sqsize + 2
-                    bottom = row * self.sqsize + self.sqsize
-                    right = col * self.sqsize + self.sqsize
-                    cas.create_text(left + 25, top + 25, text=self.a[0][wordCount1], font=('Times', 16))
-                    wordCount1 = wordCount1 + 1
-        if number == 2:
-            if self.style[1] == "ngang":
-                for col in range(self.colWords[1], len(self.a[1]) + self.colWords[1]):
-                    row = self.rowWords[1]
-                    top = row * self.sqsize + 2
-                    left = col * self.sqsize + 2
-                    cas.create_text(left + 25, top + 25, text=self.a[1][wordCount2], font=('Times', 16))
-                    wordCount1 = wordCount1 + 1
-            if self.style[1] == "doc":
-                for row in range(self.rowWords[1], len(self.a[1]) + self.rowWords[1]):
-                    col = self.colWords[1]
-                    top = row * self.sqsize + 2
-                    left = col * self.sqsize + 2
-                    cas.create_text(left + 25, top + 25, text=self.a[1][wordCount2], font=('Times', 16))
-                    wordCount2 = wordCount2 + 1
-        if number == 3:
-            if self.style[2] == "ngang":
-                for col in range(self.colWords[2], len(self.a[2]) + self.colWords[2]):
-                    row = self.rowWords[2]
-                    top = row * self.sqsize + 2
-                    left = col * self.sqsize + 2
-                    cas.create_text(left + 25, top + 25, text=self.a[2][wordCount3], font=('Times', 16))
-                    wordCount3 = wordCount3 + 1
-            if self.style[2] == "doc":
-                for row in range(self.rowWords[2], len(self.a[2]) + self.rowWords[2]):
-                    col = self.colWords[2]
-                    top = row * self.sqsize + 2
-                    left = col * self.sqsize + 2
-                    cas.create_text(left + 25, top + 25, text=self.a[2][wordCount3], font=('Times', 16))
-                    wordCount3 = wordCount3 + 1
-        if number == 4:
-            if self.style[3] == "ngang":
-                for col in range(self.colWords[3], len(self.a[3]) + self.colWords[3]):
-                    row = self.rowWords[3]
-                    top = row * self.sqsize + 2
-                    left = col * self.sqsize + 2
-                    cas.create_text(left + 25, top + 25, text=self.a[3][wordCount4], font=('Times', 16))
-                    wordCount4 = wordCount4 + 1
-            if self.style[3] == "doc":
-                for row in range(self.rowWords[3], len(self.a[3]) + self.rowWords[3]):
-                    col = self.colWords[3]
-                    top = row * self.sqsize + 2
-                    left = col * self.sqsize + 2
-                    cas.create_text(left + 25, top + 25, text=self.a[3][wordCount4], font=('Times', 16))
-                    wordCount4 = wordCount4 + 1
+                left = self.colWords[number] * self.sqsize + 2
+                bottom = row * self.sqsize + self.sqsize
+                right = (len(self.a[number]) + self.colWords[number]) * self.sqsize
 
-        if number == 5:
-            if self.style[4] == "ngang":
-                for col in range(self.colWords[4], len(self.a[4]) + self.colWords[1]):
-                    row = self.rowWords[4]
-                    top = row * self.sqsize + 2
-                    left = col * self.sqsize + 2
-                    cas.create_text(left + 25, top + 25, text=self.a[4][wordCount5], font=('Times', 16))
-                    wordCount5 = wordCount5 + 1
-            if self.style[4] == "doc":
-                for row in range(self.rowWords[4], len(self.a[4]) + self.rowWords[4]):
-                    col = self.colWords[4]
-                    top = row * self.sqsize + 2
-                    left = col * self.sqsize + 2
-                    cas.create_text(left + 25, top + 25, text=self.a[4][wordCount5], font=('Times', 16))
-                    wordCount5 = wordCount5 + 1
+            elif self.style[number] == "doc":
+                col = self.colWords[number]
+                top = self.rowWords[number] * self.sqsize + 2
+                left = col * self.sqsize + 2
+                bottom = (len(self.a[number]) + self.rowWords[number]) * self.sqsize
+                right = col * self.sqsize + self.sqsize
+            boxchoosed = cas.create_rectangle(left, top, right, bottom, outline='red', width=3)
+            if check_choosed() == 5:
+                messagebox.showerror("Victory!", "You won!")
+            if self.check[number] == '0':
+                recognizer = sr.Recognizer()
+                microphone = sr.Microphone()
+                print('Say it')
+                guess = recognize_speech_from_mic(recognizer, microphone)
+                if guess["transcription"]:
+                    print("You said: {}".format(guess["transcription"]))
+                if not guess["success"]:
+                    print("I didn't catch that. What did you say?\n")
+                if guess["error"]:
+                    print("ERROR: {}".format(guess["error"]))
+                guess_is_correct = (guess["transcription"] == self.a[number])
+                if guess_is_correct:
+                    unhide(self, number)
+                    self.check[number] = '1'
+                    check_choosed()
+                    cas.create_rectangle(850, 270, 900, 230, fill='white')
+                    cas.create_text(875, 250, fill="darkblue", font="Times 20 bold",
+                                    text=check_choosed().__str__())
+                    cas.delete(boxchoosed)
+                else:
+                    messagebox.showerror("Error", "The word is incorrect. Try it again.")
+                    cas.delete(boxchoosed)
+            else:
+                messagebox.showerror("Error", "The word is choosed. Try it again.")
+                cas.delete(boxchoosed)
 
-"""
+        def unhide(self, number):
+            wordCount1 = 0
+            if self.style[number] == "ngang":
+                for col in range(self.colWords[number], len(self.a[number]) + self.colWords[number]):
+                    row = self.rowWords[number]
+                    top = row * self.sqsize + 2
+                    left = col * self.sqsize + 2
+                    cas.create_text(left + 25, top + 25, text=self.a[number][wordCount1], font=('Times', 16))
+                    wordCount1 = wordCount1 + 1
+
+            if self.style[number] == "doc":
+                for row in range(self.rowWords[number], len(self.a[number]) + self.rowWords[number]):
+                    col = self.colWords[number]
+                    top = row * self.sqsize + 2
+                    left = col * self.sqsize + 2
+                    cas.create_text(left + 25, top + 25, text=self.a[number][wordCount1], font=('Times', 16))
+                    wordCount1 = wordCount1 + 1
 
 
 if __name__ == '__main__':
